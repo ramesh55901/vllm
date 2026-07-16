@@ -22,6 +22,8 @@
 ######################### COMMON BASE IMAGE #########################
 FROM registry.access.redhat.com/ubi9/python-312:9.8-1783600910 AS base-common
 
+ARG TARGETARCH=amd64
+
 USER 0
 
 WORKDIR /workspace
@@ -33,19 +35,14 @@ ENV MAX_JOBS=${max_jobs}
 
 # Install minimal dependencies and uv
 RUN --mount=type=cache,target=/var/cache/dnf,sharing=locked \
-    USER=root \
     dnf install -y \
         sudo \
-        ccache \
         git \
-        curl \
         wget \
         ca-certificates \
         zlib-devel \
         gcc \
         gcc-c++ \
-        gperftools \
-        numactl-devel \
         libSM \
         libXext \
         mesa-libGL \
@@ -55,13 +52,10 @@ RUN --mount=type=cache,target=/var/cache/dnf,sharing=locked \
         xz \
     && (dnf install -y ffmpeg || echo "ffmpeg not available in UBI9, skipping") \
     && dnf clean all \
-    && rm -rf /var/cache/dnf \
     && curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Compiler and linker environment
 ENV CC=/usr/bin/gcc CXX=/usr/bin/g++
-ENV CCACHE_DIR=/root/.cache/ccache
-ENV CMAKE_CXX_COMPILER_LAUNCHER=ccache
 
 ENV PATH="/root/.local/bin:$PATH"
 ENV VIRTUAL_ENV="/opt/venv"
@@ -89,15 +83,9 @@ ENV TARGETARCH=${TARGETARCH}
 ######################### x86_64 BASE IMAGE #########################
 FROM base-common AS base-amd64
 
-ENV LD_PRELOAD=/usr/lib64/libtcmalloc_minimal.so.4:/opt/venv/lib/libiomp5.so"
-
-######################### arm64 BASE IMAGE #########################
-FROM base-common AS base-arm64
-
-ENV LD_PRELOAD="/usr/lib/aarch64-linux-gnu/libtcmalloc_minimal.so.4"
 
 ######################### BASE IMAGE #########################
-FROM base-${TARGETARCH} AS base
+FROM base-amd64 AS base
 
 RUN echo 'ulimit -c 0' >> ~/.bashrc
 
@@ -111,9 +99,25 @@ USER 0
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN dnf install -y \
-        ca-certificates curl git build-essential unzip python3 python3-pip \
-    && dnf clean all \
-    rm -rf /var/cache/dnf
+        ca-certificates \
+        git \
+        gcc \
+        gcc-c++ \
+        make \
+        unzip \
+        python3 \
+        python3-pip \
+        perl \
+        perl-FindBin \
+        perl-File-Compare \
+        perl-File-Copy \
+        gcc-toolset-12 \
+        gcc-toolset-12-gcc \
+        gcc-toolset-12-gcc-c++ \
+    && dnf clean all
+    
+ENV PATH=/opt/rh/gcc-toolset-12/root/usr/bin:${PATH}
+ENV LD_LIBRARY_PATH=/opt/rh/gcc-toolset-12/root/usr/lib64:${LD_LIBRARY_PATH}
 
 COPY tools/install_protoc.sh /tmp/install_protoc.sh
 RUN /tmp/install_protoc.sh && rm /tmp/install_protoc.sh
@@ -148,21 +152,8 @@ ARG GIT_REPO_CHECK=0
 # Support for cross-compilation with x86 ISA including AVX2 and AVX512: docker build --build-arg VLLM_CPU_X86="true" ...
 ARG VLLM_CPU_X86=0
 ENV VLLM_CPU_X86=${VLLM_CPU_X86}
-# Support for cross-compilation with ARM BF16 ISA: docker build --build-arg VLLM_CPU_ARM_BF16="true" ...
-ARG VLLM_CPU_ARM_BF16=0
-ENV VLLM_CPU_ARM_BF16=${VLLM_CPU_ARM_BF16}
 
 WORKDIR /vllm-workspace
-
-# Validate build arguments - prevent mixing incompatible ISA flags
-RUN if [ "$TARGETARCH" = "arm64" ] && [ "$VLLM_CPU_X86" != "0" ]; then \
-        echo "ERROR: Cannot use x86-specific ISA flags (AVX2, AVX512, etc.) when building for ARM64 (--platform=linux/arm64)"; \
-        exit 1; \
-    fi && \
-    if [ "$TARGETARCH" = "amd64" ] && [ "$VLLM_CPU_ARM_BF16" != "0" ]; then \
-        echo "ERROR: Cannot use ARM-specific ISA flags (ARM_BF16) when building for x86_64 (--platform=linux/amd64)"; \
-        exit 1; \
-    fi
 
 # Copy build requirements
 COPY requirements/build/cpu.txt requirements/build/cpu.txt
@@ -200,7 +191,7 @@ RUN mkdir dist
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=cache,target=/root/.cache/ccache \
     --mount=type=cache,target=/vllm-workspace/.deps,sharing=locked \
-    if [ "$TARGETARCH" = "amd64" ] || [ "$VLLM_CPU_X86" != "0" ]; then \
+    if true; then \
         git clone --recurse-submodules "https://github.com/triton-lang/triton-cpu.git"; \
         cd triton-cpu; \
         git checkout "270e696d"; \
@@ -231,9 +222,12 @@ FROM vllm-build AS vllm-dev
 
 WORKDIR /vllm-workspace
 
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    apt-get install -y --no-install-recommends vim numactl clangd-14
+RUN --mount=type=cache,target=/var/cache/dnf \
+    dnf install -y \
+        vim \
+        numactl \
+        clang-tools-extra \
+    && dnf clean all
 
 RUN ln -s /usr/bin/clangd-14 /usr/bin/clangd
 
@@ -312,12 +306,10 @@ LABEL org.opencontainers.image.source="https://github.com/vllm-project/vllm"
 # Build configuration labels
 ARG TARGETARCH
 ARG VLLM_CPU_X86
-ARG VLLM_CPU_ARM_BF16
 ARG PYTHON_VERSION
 
 LABEL ai.vllm.build.target-arch="${TARGETARCH}"
 LABEL ai.vllm.build.cpu-x86="${VLLM_CPU_X86:-false}"
-LABEL ai.vllm.build.cpu-arm-bf16="${VLLM_CPU_ARM_BF16:-false}"
 LABEL ai.vllm.build.python-version="${PYTHON_VERSION:-3.12}"
 
 # Copy the examples directory (including the chat/tool templates) so it is

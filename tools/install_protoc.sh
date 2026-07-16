@@ -32,6 +32,17 @@ TMPDIR="$(mktemp -d)"
 trap 'rm -rf "${TMPDIR}"' EXIT
 
 echo "Downloading: ${URL}"
-curl -fsSL -o "${TMPDIR}/protoc.zip" "${URL}"
+curl \
+  --http1.1 \
+  --fail \
+  --show-error \
+  --location \
+  --retry 10 \
+  --retry-delay 5 \
+  --retry-all-errors \
+  --connect-timeout 30 \
+  --max-time 1800 \
+  -o "${TMPDIR}/protoc.zip" \
+  "${URL}"
 unzip -q -o "${TMPDIR}/protoc.zip" -d /usr/local
 echo "Installed $(protoc --version)"
