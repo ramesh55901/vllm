@@ -20,9 +20,7 @@
 #
 
 ######################### COMMON BASE IMAGE #########################
-FROM registry.access.redhat.com/ubi9/python-312:9.8-1783600910 AS base-common
-
-USER 0
+FROM ubuntu:22.04 AS base-common
 
 WORKDIR /workspace
 
@@ -32,34 +30,16 @@ ARG max_jobs=32
 ENV MAX_JOBS=${max_jobs}
 
 # Install minimal dependencies and uv
-RUN --mount=type=cache,target=/var/cache/dnf,sharing=locked \
-    USER=root \
-    dnf install -y \
-        sudo \
-        ccache \
-        git \
-        curl \
-        wget \
-        ca-certificates \
-        zlib-devel \
-        gcc \
-        gcc-c++ \
-        gperftools \
-        numactl-devel \
-        libSM \
-        libXext \
-        mesa-libGL \
-        jq \
-        lsof \
-        make \
-        xz \
-    && (dnf install -y ffmpeg || echo "ffmpeg not available in UBI9, skipping") \
-    && dnf clean all \
-    && rm -rf /var/cache/dnf \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update -y \
+    && apt-get install -y --no-install-recommends sudo ccache git curl wget ca-certificates zlib1g-dev \
+    gcc-12 g++-12 libtcmalloc-minimal4 libnuma-dev ffmpeg libsm6 libxext6 libgl1 jq lsof make xz-utils \
+    && update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-12 10 --slave /usr/bin/g++ g++ /usr/bin/g++-12 \
     && curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Compiler and linker environment
-ENV CC=/usr/bin/gcc CXX=/usr/bin/g++
+ENV CC=/usr/bin/gcc-12 CXX=/usr/bin/g++-12
 ENV CCACHE_DIR=/root/.cache/ccache
 ENV CMAKE_CXX_COMPILER_LAUNCHER=ccache
 
@@ -89,7 +69,7 @@ ENV TARGETARCH=${TARGETARCH}
 ######################### x86_64 BASE IMAGE #########################
 FROM base-common AS base-amd64
 
-ENV LD_PRELOAD=/usr/lib64/libtcmalloc_minimal.so.4:/opt/venv/lib/libiomp5.so"
+ENV LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libtcmalloc_minimal.so.4:/opt/venv/lib/libiomp5.so"
 
 ######################### arm64 BASE IMAGE #########################
 FROM base-common AS base-arm64
@@ -105,15 +85,13 @@ RUN echo 'ulimit -c 0' >> ~/.bashrc
 # Build the Rust frontend (`vllm-rs`) in a dedicated stage so the wheel build
 # stage doesn't need the rust toolchain or protoc. This stage runs in parallel
 # with the main vllm-build stage.
-FROM registry.access.redhat.com/ubi9/ubi:9.8-1782841664 AS rust-build
-
-USER 0
+FROM ubuntu:22.04 AS rust-build
 ENV DEBIAN_FRONTEND=noninteractive
 
-RUN dnf install -y \
+RUN apt-get update -y \
+    && apt-get install -y --no-install-recommends \
         ca-certificates curl git build-essential unzip python3 python3-pip \
-    && dnf clean all \
-    rm -rf /var/cache/dnf
+    && rm -rf /var/lib/apt/lists/*
 
 COPY tools/install_protoc.sh /tmp/install_protoc.sh
 RUN /tmp/install_protoc.sh && rm /tmp/install_protoc.sh

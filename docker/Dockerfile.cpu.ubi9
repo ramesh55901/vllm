@@ -36,7 +36,6 @@ ENV MAX_JOBS=${max_jobs}
 # Install minimal dependencies and uv
 RUN --mount=type=cache,target=/var/cache/dnf,sharing=locked \
     dnf install -y \
-        sudo \
         git \
         wget \
         ca-certificates \
