@@ -187,6 +187,9 @@ WORKDIR /vllm-workspace
 
 RUN mkdir dist
 
+RUN gcc --version && \
+    strings /lib64/libstdc++.so.6 | grep GLIBCXX | tail -30
+
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=cache,target=/root/.cache/ccache \
     --mount=type=cache,target=/vllm-workspace/.deps,sharing=locked \
