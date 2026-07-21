@@ -2,3 +2,14 @@ name: Build UBI9 CPU Image
 
 on:
   workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Verify Runner
+        run: echo "GitHub Actions is working!"
