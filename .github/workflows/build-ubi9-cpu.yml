@@ -1,6 +1,10 @@
 name: Build UBI9 CPU Image
 
 on:
+  push:
+    branches:
+      - dockerfile-cpu-0.25.0
+
   workflow_dispatch:
 
 jobs:
