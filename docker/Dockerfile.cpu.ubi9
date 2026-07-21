@@ -122,6 +122,9 @@ RUN rustc --version && \
     cargo --version
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 
+RUN ls -l /root/.local/bin
+RUN /root/.local/bin/uv --version
+
 COPY tools/install_protoc.sh /tmp/install_protoc.sh
 RUN /tmp/install_protoc.sh && rm /tmp/install_protoc.sh
 
