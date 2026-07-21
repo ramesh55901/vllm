@@ -1,0 +1,4 @@
+name: Build UBI9 CPU Image
+
+on:
+  workflow_dispatch:
