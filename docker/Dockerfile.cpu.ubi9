@@ -88,10 +88,19 @@ RUN echo 'ulimit -c 0' >> ~/.bashrc
 FROM registry.access.redhat.com/ubi9/ubi:9.6 AS rust-build
 ENV DEBIAN_FRONTEND=noninteractive
 
-RUN apt-get update -y \
-    && apt-get install -y --no-install-recommends \
-        ca-certificates curl git build-essential unzip python3 python3-pip \
-    && rm -rf /var/lib/apt/lists/*
+RUN dnf -y update && \
+    dnf install -y \
+        ca-certificates \
+        git \
+        gcc \
+        gcc-c++ \
+        make \
+        unzip \
+        python3 \
+        python3-pip \
+        findutils \
+        which && \
+    dnf clean all
 
 COPY tools/install_protoc.sh /tmp/install_protoc.sh
 RUN /tmp/install_protoc.sh && rm /tmp/install_protoc.sh
