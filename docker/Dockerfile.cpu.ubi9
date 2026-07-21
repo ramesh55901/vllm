@@ -90,12 +90,12 @@ ENV TARGETARCH=${TARGETARCH}
 ######################### x86_64 BASE IMAGE #########################
 FROM base-common AS base-amd64
 
-ENV LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libtcmalloc_minimal.so.4:/opt/venv/lib/libiomp5.so"
+ENV LD_PRELOAD="/opt/venv/lib/libiomp5.so"
 
 ######################### arm64 BASE IMAGE #########################
 FROM base-common AS base-arm64
 
-ENV LD_PRELOAD="/usr/lib/aarch64-linux-gnu/libtcmalloc_minimal.so.4"
+ENV LD_PRELOAD=""
 
 ######################### BASE IMAGE #########################
 FROM base-${TARGETARCH} AS base
@@ -209,6 +209,19 @@ FROM base AS vllm-triton-cpu-build
 ARG VLLM_CPU_X86=0
 
 WORKDIR /vllm-workspace
+RUN dnf install -y \
+    llvm \
+    llvm-devel \
+    clang \
+    clang-devel \
+    lld \
+    cmake \
+    ninja-build && \
+    dnf clean all
+ENV LLVM_SYSPATH=/usr
+ENV LLVM_CONFIG=/usr/bin/llvm-config
+ENV CC=/usr/bin/gcc
+ENV CXX=/usr/bin/g++
 
 RUN mkdir dist
 
@@ -216,9 +229,11 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=cache,target=/root/.cache/ccache \
     --mount=type=cache,target=/vllm-workspace/.deps,sharing=locked \
     if [ "$TARGETARCH" = "amd64" ] || [ "$VLLM_CPU_X86" != "0" ]; then \
-        git clone --recurse-submodules "https://github.com/triton-lang/triton-cpu.git"; \
+        git clone --recurse-submodules https://github.com/triton-lang/triton-cpu.git; \
         cd triton-cpu; \
-        git checkout "270e696d"; \
+        git checkout 270e696d; \
+        export LLVM_SYSPATH=/usr; \
+        export LLVM_CONFIG=/usr/bin/llvm-config; \
         uv build --wheel --out-dir=../dist; \
     fi
 
