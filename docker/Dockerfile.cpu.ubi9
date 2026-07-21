@@ -36,20 +36,24 @@ RUN dnf repolist && \
     find /usr/include -name numa.h || true
 
 # Install minimal dependencies and uv
-RUN dnf install -y \
-    git \
-    wget \
-    ca-certificates \
-    gcc \
-    gcc-c++ \
-    make \
-    jq \
-    lsof \
-    xz \
-    which \
-    findutils \
-    && dnf clean all \
-    && curl -LsSf https://astral.sh/uv/install.sh | sh
+RUN dnf update -y && \
+    dnf install -y \
+      gcc \
+      gcc-c++ \
+      libstdc++ \
+      libstdc++-devel \
+      git \
+      wget \
+      make \
+      cmake \
+      ninja-build \
+      ca-certificates \
+      findutils \
+      which \
+      jq \
+      xz \
+      lsof && \
+    dnf clean all
 
 
 
@@ -198,7 +202,9 @@ ARG VLLM_CPU_X86=0
 WORKDIR /vllm-workspace
 
 RUN mkdir dist
-
+RUN gcc --version && \
+    g++ --version && \
+    strings /lib64/libstdc++.so.6 | grep GLIBCXX | tail -20
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=cache,target=/root/.cache/ccache \
     --mount=type=cache,target=/vllm-workspace/.deps,sharing=locked \
