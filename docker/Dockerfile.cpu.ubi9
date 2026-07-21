@@ -56,9 +56,14 @@ RUN --mount=type=cache,target=/var/cache/dnf,sharing=locked \
         mesa-libGL \
         findutils \
         which && \
-    dnf clean all && \
-    curl -LsSf https://astral.sh/uv/install.sh | sh
+    dnf install -y gcc-toolset-13 && \
+dnf clean all && \
+curl -LsSf https://astral.sh/uv/install.sh | sh
 
+ENV PATH=/opt/rh/gcc-toolset-13/root/usr/bin:$PATH
+ENV LD_LIBRARY_PATH=/opt/rh/gcc-toolset-13/root/usr/lib64:$LD_LIBRARY_PATH
+ENV CC=gcc
+ENV CXX=g++
 # Compiler and linker environment
 ENV CC=/usr/bin/gcc CXX=/usr/bin/g++
 ENV CCACHE_DIR=/root/.cache/ccache
