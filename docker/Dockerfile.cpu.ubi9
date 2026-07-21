@@ -33,9 +33,14 @@ ENV MAX_JOBS=${max_jobs}
 RUN --mount=type=cache,target=/var/cache/dnf,sharing=locked \
     dnf -y update && \
     dnf install -y \
+        'dnf-command(config-manager)' && \
+    dnf install -y \
+        https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm && \
+    dnf install -y \
         sudo \
         ccache \
         git \
+        curl \
         wget \
         ca-certificates \
         zlib-devel \
@@ -56,7 +61,7 @@ RUN --mount=type=cache,target=/var/cache/dnf,sharing=locked \
     curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Compiler and linker environment
-ENV CC=/usr/bin/gcc-12 CXX=/usr/bin/g++-12
+ENV CC=/usr/bin/gcc CXX=/usr/bin/g++
 ENV CCACHE_DIR=/root/.cache/ccache
 ENV CMAKE_CXX_COMPILER_LAUNCHER=ccache
 
@@ -235,9 +240,13 @@ FROM vllm-build AS vllm-dev
 
 WORKDIR /vllm-workspace
 
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    apt-get install -y --no-install-recommends vim numactl clangd-14
+RUN --mount=type=cache,target=/var/cache/dnf,sharing=locked \
+    dnf -y update && \
+    dnf install -y \
+        vim \
+        numactl \
+        clang-tools-extra && \
+    dnf clean all
 
 RUN ln -s /usr/bin/clangd-14 /usr/bin/clangd
 
