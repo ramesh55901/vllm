@@ -1,0 +1,39 @@
+name: Build vLLM CPU UBI9
+
+on:
+  workflow_dispatch:
+
+  push:
+    branches:
+      - docker-cpu-ubi9
+
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build CPU Image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile.cpu.ubi9
+          target: vllm-openai
+          platforms: linux/amd64
+          tags: vllm:cpu-ubi9
+          load: true
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
