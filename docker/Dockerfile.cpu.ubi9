@@ -91,6 +91,11 @@ RUN echo 'ulimit -c 0' >> ~/.bashrc
 FROM --platform=linux/amd64 registry.access.redhat.com/ubi9/python-312:9.8-1783600910 AS rust-build
 
 USER root
+
+ENV HOME=/root
+ENV CARGO_HOME=/root/.cargo
+ENV RUSTUP_HOME=/root/.rustup
+ENV PATH=/root/.cargo/bin:$PATH
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN dnf install -y \
