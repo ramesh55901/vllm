@@ -1,6 +1,9 @@
 name: Build Original CPU Docker Image
 
 on:
+  push:
+    branches:
+      - dockerfile-cpu-0.25.0
   workflow_dispatch:
 
 jobs:
