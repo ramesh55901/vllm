@@ -209,22 +209,29 @@ FROM base AS vllm-triton-cpu-build
 ARG VLLM_CPU_X86=0
 
 WORKDIR /vllm-workspace
+
 RUN dnf install -y 'dnf-command(config-manager)' && \
     dnf config-manager --set-enabled crb || true && \
     dnf install -y \
         llvm \
-        llvm-devel \
-        clang \
-        clang-devel \
-        lld \
-        cmake \
-        ninja-build \
-        python3-devel \
-        zlib-devel \
-        libxml2-devel \
-        ncurses-devel \
-        gperftools-libs && \
-    dnf clean all
+    llvm-devel \
+    clang \
+    clang-devel \
+    lld \
+    cmake \
+    ninja-build \
+    gcc \
+    gcc-c++ \
+    libstdc++ \
+    libstdc++-devel \
+    gcc-toolset-12 \
+    gcc-toolset-12-gcc \
+    gcc-toolset-12-gcc-c++ \
+    gperftools-libs \
+    && dnf clean all
+
+ENV PATH=/opt/rh/gcc-toolset-12/root/usr/bin:$PATH
+ENV LD_LIBRARY_PATH=/opt/rh/gcc-toolset-12/root/usr/lib64:$LD_LIBRARY_PATH
 
 RUN dnf search mlir || true && \
     find /usr -name MLIRConfig.cmake || true
