@@ -40,14 +40,13 @@ RUN --mount=type=cache,target=/var/cache/dnf,sharing=locked \
         sudo \
         ccache \
         git \
-        curl \
         wget \
         ca-certificates \
         zlib-devel \
         gcc \
         gcc-c++ \
         gperftools-libs \
-        numactl-devel \
+        numactl \
         jq \
         lsof \
         make \
