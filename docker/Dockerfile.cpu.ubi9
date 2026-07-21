@@ -112,10 +112,17 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN dnf -y update && \
     dnf install -y \
         ca-certificates \
+        wget \
         git \
         gcc \
         gcc-c++ \
         make \
+        perl \
+        perl-FindBin \
+        perl-IPC-Cmd \
+        openssl \
+        openssl-devel \
+        pkgconf-pkg-config \
         unzip \
         python3 \
         python3-pip \
