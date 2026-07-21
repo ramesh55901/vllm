@@ -92,11 +92,8 @@ FROM --platform=linux/amd64 registry.access.redhat.com/ubi9/python-312:9.8-17836
 
 USER root
 
+
 ENV HOME=/root
-ENV CARGO_HOME=/root/.cargo
-ENV RUSTUP_HOME=/root/.rustup
-ENV PATH=/root/.cargo/bin:$PATH
-ENV DEBIAN_FRONTEND=noninteractive
 
 RUN dnf install -y \
     git \
@@ -115,8 +112,11 @@ RUN dnf install -y \
     xz \
     which \
     findutils \
- && dnf clean all \
- && curl -LsSf https://astral.sh/uv/install.sh | sh
+    rust-toolset \
+ && dnf clean all
+RUN rustc --version && \
+    cargo --version
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 
 COPY tools/install_protoc.sh /tmp/install_protoc.sh
 RUN /tmp/install_protoc.sh && rm /tmp/install_protoc.sh
