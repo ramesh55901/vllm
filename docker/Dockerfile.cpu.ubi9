@@ -20,7 +20,7 @@
 #
 
 ######################### COMMON BASE IMAGE #########################
-FROM registry.access.redhat.com/ubi9/ubi:9.6 AS base-common
+FROM registry.access.redhat.com/ubi9/ubi:9.8 AS base-common
 
 WORKDIR /workspace
 
@@ -107,7 +107,7 @@ RUN echo 'ulimit -c 0' >> ~/.bashrc
 # Build the Rust frontend (`vllm-rs`) in a dedicated stage so the wheel build
 # stage doesn't need the rust toolchain or protoc. This stage runs in parallel
 # with the main vllm-build stage.
-FROM registry.access.redhat.com/ubi9/ubi:9.6 AS rust-build
+FROM registry.access.redhat.com/ubi9/ubi:9.8 AS rust-build
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN dnf -y update && \
