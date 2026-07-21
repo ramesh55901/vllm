@@ -57,7 +57,12 @@ RUN dnf update -y && \
 
 
 
-ENV PATH="/root/.local/bin:$PATH"
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
+    ln -sf /root/.local/bin/uv /usr/local/bin/uv
+
+ENV PATH="/usr/local/bin:/root/.local/bin:${PATH}"
+
+RUN which uv && uv --version
 ENV VIRTUAL_ENV="/opt/venv"
 ENV UV_PYTHON_INSTALL_DIR=/opt/uv/python
 RUN python3 -m venv ${VIRTUAL_ENV} && \
@@ -121,7 +126,9 @@ RUN dnf install -y \
 RUN rustc --version && \
     cargo --version
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
-
+RUN echo "PATH=$PATH" && \
+    ls -l /root/.local/bin && \
+    /root/.local/bin/uv --version
 RUN ls -l /root/.local/bin
 RUN /root/.local/bin/uv --version
 
