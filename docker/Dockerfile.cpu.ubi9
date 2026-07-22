@@ -58,8 +58,17 @@ RUN --mount=type=cache,target=/var/cache/dnf,sharing=locked \
         which && \
     dnf clean all && \
     curl -LsSf https://astral.sh/uv/install.sh | sh
-RUN find /opt/rh/gcc-toolset-13 -name 'libstdc++.so.6*' -exec cp -v {} /usr/lib64/ \; && \
-    ldconfig && \
+
+RUN best=$(find / -xdev -name 'libstdc++.so.6*' -type f 2>/dev/null | while read -r f; do \
+        if strings "$f" 2>/dev/null | grep -q 'GLIBCXX_3.4.30'; then echo "$f"; fi; \
+    done | head -n1) && \
+    if [ -n "$best" ]; then \
+        echo "Using $best"; \
+        cp -v "$best" /usr/lib64/libstdc++.so.6; \
+        ldconfig; \
+    else \
+        echo "No libstdc++.so.6 with GLIBCXX_3.4.30 found on this image" && exit 1; \
+    fi && \
     ldconfig -p | grep libstdc++
 
 ENV PATH=/opt/rh/gcc-toolset-13/root/usr/bin:$PATH
