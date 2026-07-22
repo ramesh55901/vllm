@@ -33,7 +33,7 @@ on:
 
   push:
     branches:
-      - main
+      - v0.18.0-dockerfile-cpu-ubi9
     paths:
       - "docker/Dockerfile.cpu.ubi9"
       - "requirements/**"
