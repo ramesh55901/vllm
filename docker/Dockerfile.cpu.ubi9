@@ -1,0 +1,301 @@
+# This Dockerfile migrates vLLM v0.18.0 CPU builds from Ubuntu 22.04
+# to Red Hat UBI 9 for linux/amd64 only.
+#
+# Original source:
+#   docker/Dockerfile.cpu at tag v0.18.0
+#
+# Build:
+#   podman build \
+#     --platform=linux/amd64 \
+#     --target=vllm-openai \
+#     --build-arg TARGETARCH=amd64 \
+#     -f docker/Dockerfile.cpu.ubi9 \
+#     -t vllm-cpu:v0.18.0-ubi9 .
+#
+# Supported target:
+#   linux/amd64 only
+#
+# Build targets:
+#   vllm-openai       - serving image
+#   vllm-openai-zen   - serving image with AMD Zen extensions
+#   vllm-test         - CI/test image
+#   vllm-dev          - development image
+
+# syntax=docker/dockerfile:1.7
+
+#########################
+# COMMON BASE IMAGE
+#########################
+FROM registry.access.redhat.com/ubi9/ubi:9.8 AS base-common
+
+WORKDIR /workspace
+
+ARG PYTHON_VERSION=3.12
+ARG TARGETARCH=amd64
+ARG PIP_EXTRA_INDEX_URL="https://download.pytorch.org/whl/cpu"
+
+# This migration intentionally supports linux/amd64 only.
+RUN test "${TARGETARCH}" = "amd64" || \
+    { echo "ERROR: This Dockerfile supports only linux/amd64"; exit 1; }
+
+# Install UBI/RHEL build and runtime dependencies.
+#
+# UBI CodeReady Builder is required for some development packages.
+# EPEL provides gperftools.
+# RPM Fusion Free provides ffmpeg for EL9.
+RUN --mount=type=cache,target=/var/cache/dnf,sharing=locked \
+    dnf install -y dnf-plugins-core curl ca-certificates && \
+    dnf config-manager --set-enabled ubi-9-codeready-builder-rpms && \
+    dnf install -y \
+        https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm && \
+    dnf install -y \
+        https://download1.rpmfusion.org/free/el/rpmfusion-free-release-9.noarch.rpm && \
+    dnf install -y \
+        sudo \
+        ccache \
+        git \
+        curl \
+        wget \
+        ca-certificates \
+        gcc-toolset-13-gcc \
+        gcc-toolset-13-gcc-c++ \
+        gcc-toolset-13-binutils \
+        gperftools-libs \
+        numactl \
+        numactl-devel \
+        ffmpeg \
+        mesa-libGL \
+        libSM \
+        libXext \
+        jq \
+        lsof \
+        make \
+        xz \
+        findutils \
+        procps-ng \
+        which \
+        tar \
+        gzip \
+        shadow-utils && \
+    dnf clean all && \
+    rm -rf /var/cache/dnf
+
+# Use GCC Toolset 13, which satisfies the compiler requirement without
+# changing the original vLLM build flow.
+ENV GCC_TOOLSET_ROOT=/opt/rh/gcc-toolset-13/root
+ENV CC=${GCC_TOOLSET_ROOT}/usr/bin/gcc
+ENV CXX=${GCC_TOOLSET_ROOT}/usr/bin/g++
+ENV PATH="${GCC_TOOLSET_ROOT}/usr/bin:/root/.local/bin:${PATH}"
+ENV LD_LIBRARY_PATH="${GCC_TOOLSET_ROOT}/usr/lib64:${GCC_TOOLSET_ROOT}/usr/lib:${LD_LIBRARY_PATH}"
+
+# Install uv exactly as in the upstream Dockerfile.
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+
+ENV CCACHE_DIR=/root/.cache/ccache
+ENV CMAKE_CXX_COMPILER_LAUNCHER=ccache
+
+ENV VIRTUAL_ENV=/opt/venv
+ENV UV_PYTHON_INSTALL_DIR=/opt/uv/python
+
+RUN uv venv \
+      --python "${PYTHON_VERSION}" \
+      --seed \
+      "${VIRTUAL_ENV}"
+
+ENV PATH="${VIRTUAL_ENV}/bin:${PATH}"
+ENV UV_HTTP_TIMEOUT=500
+
+# Preserve the original Python package index behavior.
+ENV PIP_EXTRA_INDEX_URL=${PIP_EXTRA_INDEX_URL}
+ENV UV_EXTRA_INDEX_URL=${PIP_EXTRA_INDEX_URL}
+ENV UV_INDEX_STRATEGY=unsafe-best-match
+ENV UV_LINK_MODE=copy
+
+COPY requirements/common.txt requirements/common.txt
+COPY requirements/cpu.txt requirements/cpu.txt
+
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --upgrade pip && \
+    uv pip install -r requirements/cpu.txt
+
+# UBI/RHEL stores 64-bit libraries under /usr/lib64.
+# libiomp5.so is installed into the virtual environment by the CPU
+# Python requirements.
+RUN test -e /usr/lib64/libtcmalloc_minimal.so.4 && \
+    test -e /opt/venv/lib/libiomp5.so
+
+ENV TARGETARCH=${TARGETARCH}
+ENV LD_PRELOAD="/usr/lib64/libtcmalloc_minimal.so.4:/opt/venv/lib/libiomp5.so"
+
+# Match the original base-stage behavior.
+RUN echo 'ulimit -c 0' >> /root/.bashrc
+
+
+#########################
+# BUILD IMAGE
+#########################
+FROM base-common AS vllm-build
+
+ARG max_jobs=32
+ARG GIT_REPO_CHECK=0
+ARG VLLM_CPU_X86=0
+ARG TARGETARCH=amd64
+
+ENV MAX_JOBS=${max_jobs}
+ENV VLLM_CPU_X86=${VLLM_CPU_X86}
+ENV VLLM_TARGET_DEVICE=cpu
+ENV CMAKE_DISABLE_FIND_PACKAGE_CUDA=ON
+
+RUN test "${TARGETARCH}" = "amd64" || \
+    { echo "ERROR: This Dockerfile supports only linux/amd64"; exit 1; }
+
+WORKDIR /vllm-workspace
+
+COPY requirements/cpu-build.txt requirements/build.txt
+
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install -r requirements/build.txt
+
+COPY . .
+
+RUN if [ "${GIT_REPO_CHECK}" != "0" ]; then \
+        bash tools/check_repo.sh; \
+    fi
+
+RUN --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=cache,target=/root/.cache/ccache \
+    --mount=type=cache,target=/vllm-workspace/.deps,sharing=locked \
+    VLLM_TARGET_DEVICE=cpu \
+    python3 setup.py bdist_wheel \
+        --dist-dir=dist \
+        --py-limited-api=cp38
+
+
+#########################
+# TEST DEPENDENCIES
+#########################
+FROM base-common AS vllm-test-deps
+
+WORKDIR /vllm-workspace
+
+COPY requirements/test.in requirements/cpu-test.in
+
+# ARM-only filtering from the upstream Dockerfile is intentionally removed.
+RUN sed -i '/mamba_ssm/d' requirements/cpu-test.in && \
+    sed -i 's/^torch==.*/torch==2.10.0/g' requirements/cpu-test.in && \
+    sed -i 's/torchaudio.*/torchaudio/g' requirements/cpu-test.in && \
+    sed -i 's/torchvision.*/torchvision/g' requirements/cpu-test.in && \
+    uv pip compile \
+        requirements/cpu-test.in \
+        -o requirements/cpu-test.txt \
+        --index-strategy unsafe-best-match \
+        --torch-backend cpu
+
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install -r requirements/cpu-test.txt
+
+
+#########################
+# DEVELOPMENT IMAGE
+#########################
+FROM vllm-build AS vllm-dev
+
+WORKDIR /vllm-workspace
+
+RUN --mount=type=cache,target=/var/cache/dnf,sharing=locked \
+    dnf install -y \
+        vim-enhanced \
+        numactl \
+        clang-tools-extra && \
+    dnf clean all && \
+    rm -rf /var/cache/dnf
+
+RUN command -v clangd
+
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install -e tests/vllm_test_utils
+
+RUN --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=cache,target=/root/.cache/ccache \
+    --mount=type=bind,source=.git,target=.git \
+    VLLM_TARGET_DEVICE=cpu \
+    python3 setup.py develop
+
+COPY --from=vllm-test-deps \
+    /vllm-workspace/requirements/cpu-test.txt \
+    requirements/test.txt
+
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install -r requirements/dev.txt && \
+    pre-commit install \
+        --hook-type pre-commit \
+        --hook-type commit-msg
+
+ENTRYPOINT ["bash"]
+
+
+#########################
+# TEST IMAGE
+#########################
+FROM vllm-test-deps AS vllm-test
+
+WORKDIR /vllm-workspace
+
+RUN --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=bind,from=vllm-build,src=/vllm-workspace/dist,target=dist \
+    uv pip install dist/*.whl
+
+ADD ./tests/ ./tests/
+ADD ./examples/ ./examples/
+ADD ./benchmarks/ ./benchmarks/
+ADD ./vllm/collect_env.py .
+ADD ./.buildkite/ ./.buildkite/
+
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install -e tests/vllm_test_utils
+
+
+#########################
+# RELEASE IMAGE
+#########################
+FROM base-common AS vllm-openai
+
+WORKDIR /vllm-workspace
+
+RUN --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=cache,target=/root/.cache/ccache \
+    --mount=type=bind,from=vllm-build,src=/vllm-workspace/dist,target=dist \
+    uv pip install dist/*.whl
+
+LABEL org.opencontainers.image.title="vLLM CPU"
+LABEL org.opencontainers.image.description="vLLM inference engine for linux/amd64 CPU on UBI 9"
+LABEL org.opencontainers.image.vendor="vLLM Project"
+LABEL org.opencontainers.image.source="https://github.com/vllm-project/vllm"
+LABEL org.opencontainers.image.version="0.18.0"
+
+ARG TARGETARCH=amd64
+ARG VLLM_CPU_X86=0
+ARG PYTHON_VERSION=3.12
+
+LABEL ai.vllm.build.target-arch="${TARGETARCH}"
+LABEL ai.vllm.build.cpu-x86="${VLLM_CPU_X86}"
+LABEL ai.vllm.build.python-version="${PYTHON_VERSION}"
+LABEL ai.vllm.build.base-image="registry.access.redhat.com/ubi9/ubi:9.8"
+
+ENTRYPOINT ["vllm", "serve"]
+
+
+#########################
+# AMD ZEN CPU IMAGE
+#########################
+FROM vllm-openai AS vllm-openai-zen
+
+ARG TARGETARCH=amd64
+
+RUN test "${TARGETARCH}" = "amd64" || \
+    { echo "ERROR: vllm-openai-zen supports only linux/amd64"; exit 1; }
+
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install "vllm[zen]"
+
+ENTRYPOINT ["vllm", "serve"]
