@@ -59,13 +59,15 @@ RUN --mount=type=cache,target=/var/cache/dnf,sharing=locked \
         gcc-toolset-13-gcc-c++ \
         gcc-toolset-13-binutils \
         gperftools-libs \
-        numactl \
         mesa-libGL \
         libSM \
         libXext \
         jq \
         lsof \
         make \
+        autoconf \
+        automake \
+        libtool \
         xz \
         findutils \
         procps-ng \
@@ -74,6 +76,25 @@ RUN --mount=type=cache,target=/var/cache/dnf,sharing=locked \
         gzip \
         shadow-utils && \
     dnf clean all
+
+ARG NUMACTL_VERSION=2.0.19
+
+RUN git clone \
+        --branch "v${NUMACTL_VERSION}" \
+        --depth 1 \
+        https://github.com/numactl/numactl.git \
+        /tmp/numactl && \
+    cd /tmp/numactl && \
+    ./autogen.sh && \
+    ./configure \
+        --prefix=/usr \
+        --libdir=/usr/lib64 && \
+    make -j"$(nproc)" && \
+    make install && \
+    ldconfig && \
+    test -f /usr/include/numa.h && \
+    test -f /usr/lib64/libnuma.so && \
+    rm -rf /tmp/numactl
 
 # Use GCC Toolset 13, which satisfies the compiler requirement without
 # changing the original vLLM build flow.
