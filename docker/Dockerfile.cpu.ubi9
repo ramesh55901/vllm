@@ -73,8 +73,7 @@ RUN --mount=type=cache,target=/var/cache/dnf,sharing=locked \
         tar \
         gzip \
         shadow-utils && \
-    dnf clean all && \
-    rm -rf /var/cache/dnf
+    dnf clean all
 
 # Use GCC Toolset 13, which satisfies the compiler requirement without
 # changing the original vLLM build flow.
