@@ -84,17 +84,6 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install --upgrade pip && \
     uv pip install -r requirements/cpu.txt --torch-backend cpu
 
-RUN best=$(find / -xdev -name 'libstdc++.so.6*' -type f 2>/dev/null | while read -r f; do \
-        if strings "$f" 2>/dev/null | grep -q 'GLIBCXX_3.4.30'; then echo "$f"; fi; \
-    done | head -n1) && \
-    if [ -n "$best" ]; then \
-        echo "Using $best"; \
-        cp -v "$best" /usr/lib64/libstdc++.so.6; \
-        ldconfig; \
-    else \
-        echo "No libstdc++.so.6 with GLIBCXX_3.4.30 found on this image" && exit 1; \
-    fi && \
-    ldconfig -p | grep libstdc++
 
 ARG TARGETARCH
 ENV TARGETARCH=${TARGETARCH}
@@ -212,35 +201,33 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     VLLM_TARGET_DEVICE=cpu python3 setup.py bdist_wheel --dist-dir=dist --py-limited-api=cp38
 
 ######################### TRITON-CPU BUILD IMAGE #########################
+######################### TRITON-CPU BUILD IMAGE #########################
 FROM base AS vllm-triton-cpu-build
 
-# Support for cross-compilation with x86 ISA including AVX2 and AVX512: docker build --build-arg VLLM_CPU_X86="true" ...
-# Re-declared here because this stage is `FROM base` (not `vllm-build`), so it
-# does not inherit the ARG/ENV defined there. Without it, the guard below would
-# see an empty value and build triton-cpu on non-x86 targets (e.g. arm64).
 ARG VLLM_CPU_X86=0
+ARG LLVM_TARBALL_URL="https://github.com/ramesh55901/vllm/releases/download/llvm-mlir-ubi9-dcae990e19b7efd6181558ed41ff2dccb702a8d6/llvm-mlir-ubi9.tar.gz"
 
 WORKDIR /vllm-workspace
 
 RUN dnf install -y 'dnf-command(config-manager)' && \
     dnf config-manager --set-enabled crb || true && \
     dnf install -y \
-        cmake \
-        ninja-build \
-        gcc \
-        gcc-c++ \
-        libstdc++ \
-        libstdc++-devel \
-        libxml2-devel \
-        openssl-devel \
-        zlib-devel \
-        gperftools-libs \
-        && dnf clean all
+        cmake ninja-build gcc gcc-c++ libstdc++ libstdc++-devel \
+        libxml2-devel openssl-devel zlib-devel gperftools-libs \
+        wget tar && \
+    dnf clean all
 
+# Download and extract the pre-built LLVM/MLIR tarball instead of compiling
+# LLVM from source in this stage. Bump LLVM_TARBALL_URL when the pinned LLVM
+# version changes (see docker/Dockerfile.llvm-ubi9 and its build workflow).
+RUN mkdir -p /opt/llvm && \
+    wget -q "${LLVM_TARBALL_URL}" -O /tmp/llvm-mlir-ubi9.tar.gz && \
+    tar -xzf /tmp/llvm-mlir-ubi9.tar.gz -C /opt/llvm && \
+    rm /tmp/llvm-mlir-ubi9.tar.gz
 
-RUN dnf search mlir || true && \
-    find /usr -name MLIRConfig.cmake || true
-
+ENV LLVM_SYSPATH=/opt/llvm
+ENV LLVM_INCLUDE_DIRS=/opt/llvm/include
+ENV LLVM_LIBRARY_DIR=/opt/llvm/lib
 ENV CC=/opt/rh/gcc-toolset-13/root/usr/bin/gcc
 ENV CXX=/opt/rh/gcc-toolset-13/root/usr/bin/g++
 
