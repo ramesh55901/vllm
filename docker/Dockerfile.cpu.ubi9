@@ -59,17 +59,6 @@ RUN --mount=type=cache,target=/var/cache/dnf,sharing=locked \
     dnf clean all && \
     curl -LsSf https://astral.sh/uv/install.sh | sh
 
-RUN best=$(find / -xdev -name 'libstdc++.so.6*' -type f 2>/dev/null | while read -r f; do \
-        if strings "$f" 2>/dev/null | grep -q 'GLIBCXX_3.4.30'; then echo "$f"; fi; \
-    done | head -n1) && \
-    if [ -n "$best" ]; then \
-        echo "Using $best"; \
-        cp -v "$best" /usr/lib64/libstdc++.so.6; \
-        ldconfig; \
-    else \
-        echo "No libstdc++.so.6 with GLIBCXX_3.4.30 found on this image" && exit 1; \
-    fi && \
-    ldconfig -p | grep libstdc++
 
 ENV PATH=/opt/rh/gcc-toolset-13/root/usr/bin:$PATH
 ENV LD_LIBRARY_PATH=/opt/rh/gcc-toolset-13/root/usr/lib64:$LD_LIBRARY_PATH
@@ -94,6 +83,18 @@ COPY requirements/cpu.txt requirements/cpu.txt
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install --upgrade pip && \
     uv pip install -r requirements/cpu.txt --torch-backend cpu
+
+RUN best=$(find / -xdev -name 'libstdc++.so.6*' -type f 2>/dev/null | while read -r f; do \
+        if strings "$f" 2>/dev/null | grep -q 'GLIBCXX_3.4.30'; then echo "$f"; fi; \
+    done | head -n1) && \
+    if [ -n "$best" ]; then \
+        echo "Using $best"; \
+        cp -v "$best" /usr/lib64/libstdc++.so.6; \
+        ldconfig; \
+    else \
+        echo "No libstdc++.so.6 with GLIBCXX_3.4.30 found on this image" && exit 1; \
+    fi && \
+    ldconfig -p | grep libstdc++
 
 ARG TARGETARCH
 ENV TARGETARCH=${TARGETARCH}
