@@ -19,7 +19,6 @@
 #   VLLM_CPU_ARM_BF16=false (default)|true (for cross-compilation)
 #
 
-######################### COMMON BASE IMAGE #########################
 FROM registry.access.redhat.com/ubi9/ubi:9.8 AS base-common
 
 WORKDIR /workspace
@@ -60,15 +59,6 @@ RUN --mount=type=cache,target=/var/cache/dnf,sharing=locked \
     dnf clean all && \
     curl -LsSf https://astral.sh/uv/install.sh | sh
 
-RUN dnf install -y gcc-toolset-13 && \
-    dnf clean all && \
-    curl -LsSf https://astral.sh/uv/install.sh | sh
-
-ENV PATH=/opt/rh/gcc-toolset-13/root/usr/bin:$PATH
-ENV LD_LIBRARY_PATH=/opt/rh/gcc-toolset-13/root/usr/lib64:$LD_LIBRARY_PATH
-ENV CC=gcc
-ENV CXX=g++
-# Compiler and linker environment
 ENV PATH=/opt/rh/gcc-toolset-13/root/usr/bin:$PATH
 ENV LD_LIBRARY_PATH=/opt/rh/gcc-toolset-13/root/usr/lib64:$LD_LIBRARY_PATH
 ENV CC=/opt/rh/gcc-toolset-13/root/usr/bin/gcc
@@ -83,12 +73,9 @@ RUN uv venv --python ${PYTHON_VERSION} --seed ${VIRTUAL_ENV}
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
 ENV UV_HTTP_TIMEOUT=500
-
-# Install Python dependencies
 ENV UV_INDEX_STRATEGY="unsafe-best-match"
 ENV UV_LINK_MODE="copy"
 
-# Copy requirements files for installation
 COPY requirements/common.txt requirements/common.txt
 COPY requirements/cpu.txt requirements/cpu.txt
 

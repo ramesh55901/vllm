@@ -26,11 +26,13 @@ jobs:
         run: |
           free -h
           swapon --show
+          df -h /
           sudo fallocate -l 8G /swapfile2
           sudo chmod 600 /swapfile2
           sudo mkswap /swapfile2
           sudo swapon /swapfile2
           free -h
+          df -h /
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
