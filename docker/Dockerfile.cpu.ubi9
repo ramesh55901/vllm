@@ -50,8 +50,6 @@ RUN --mount=type=cache,target=/var/cache/dnf,sharing=locked \
     dnf install -y \
         https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm && \
     dnf install -y \
-        https://download1.rpmfusion.org/free/el/rpmfusion-free-release-9.noarch.rpm && \
-    dnf install -y \
         sudo \
         ccache \
         git \
@@ -62,7 +60,6 @@ RUN --mount=type=cache,target=/var/cache/dnf,sharing=locked \
         gcc-toolset-13-binutils \
         gperftools-libs \
         numactl \
-        ffmpeg \
         mesa-libGL \
         libSM \
         libXext \
