@@ -1,0 +1,52 @@
+name: Build LLVM/MLIR Tarball for UBI9
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'docker/Dockerfile.llvm-ubi9'
+      - '.github/workflows/build-llvm-tarball.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up swap
+        run: |
+          sudo fallocate -l 8G /swapfile2
+          sudo chmod 600 /swapfile2
+          sudo mkswap /swapfile2
+          sudo swapon /swapfile2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build LLVM image and extract tarball
+        run: |
+          docker buildx build \
+            --platform linux/amd64 \
+            -f docker/Dockerfile.llvm-ubi9 \
+            -t llvm-ubi9-builder:latest \
+            --load \
+            --build-arg max_jobs=3 \
+            .
+
+          container_id=$(docker create llvm-ubi9-builder:latest)
+          docker cp "$container_id":/opt/llvm ./llvm-out
+          docker rm "$container_id"
+
+          tar -C ./llvm-out -czf llvm-mlir-ubi9.tar.gz .
+          ls -lh llvm-mlir-ubi9.tar.gz
+
+      - name: Upload tarball as release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: llvm-mlir-ubi9-${{ github.sha }}
+          files: llvm-mlir-ubi9.tar.gz
+          make_latest: true
