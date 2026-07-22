@@ -44,7 +44,7 @@ RUN test "${TARGETARCH}" = "amd64" || \
 # EPEL provides gperftools.
 # RPM Fusion Free provides ffmpeg for EL9.
 RUN --mount=type=cache,target=/var/cache/dnf,sharing=locked \
-    dnf install -y dnf-plugins-core curl ca-certificates && \
+    dnf install -y dnf-plugins-core  ca-certificates && \
     dnf config-manager --set-enabled ubi-9-codeready-builder-rpms && \
     dnf install -y \
         https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm && \
@@ -54,7 +54,6 @@ RUN --mount=type=cache,target=/var/cache/dnf,sharing=locked \
         sudo \
         ccache \
         git \
-        curl \
         wget \
         ca-certificates \
         gcc-toolset-13-gcc \
