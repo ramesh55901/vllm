@@ -205,7 +205,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 FROM base AS vllm-triton-cpu-build
 
 ARG VLLM_CPU_X86=0
-ARG LLVM_TARBALL_URL="https://github.com/ramesh55901/vllm/releases/download/llvm-mlir-ubi9-ecc870538d46f441d670894c9dde82b0e2b4f39b/llvm-mlir-ubi9.tar.gz"
+ARG LLVM_TARBALL_URL="https://github.com/ramesh55901/vllm/releases/download/llvm-mlir-ubi9-ce8335b8be9f7de499043d49a0cf7df3f63cd05a/llvm-mlir-ubi9.tar.gz"
 
 WORKDIR /vllm-workspace
 
