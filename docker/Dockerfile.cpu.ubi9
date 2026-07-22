@@ -44,8 +44,9 @@ RUN test "${TARGETARCH}" = "amd64" || \
 # EPEL provides gperftools.
 # RPM Fusion Free provides ffmpeg for EL9.
 RUN --mount=type=cache,target=/var/cache/dnf,sharing=locked \
-    dnf install -y dnf-plugins-core  ca-certificates && \
-    dnf config-manager --set-enabled ubi-9-codeready-builder-rpms && \
+    dnf install -y \
+        dnf-plugins-core \
+        ca-certificates && \
     dnf install -y \
         https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm && \
     dnf install -y \
@@ -61,7 +62,6 @@ RUN --mount=type=cache,target=/var/cache/dnf,sharing=locked \
         gcc-toolset-13-binutils \
         gperftools-libs \
         numactl \
-        numactl-devel \
         ffmpeg \
         mesa-libGL \
         libSM \
@@ -85,7 +85,7 @@ ENV GCC_TOOLSET_ROOT=/opt/rh/gcc-toolset-13/root
 ENV CC=${GCC_TOOLSET_ROOT}/usr/bin/gcc
 ENV CXX=${GCC_TOOLSET_ROOT}/usr/bin/g++
 ENV PATH="${GCC_TOOLSET_ROOT}/usr/bin:/root/.local/bin:${PATH}"
-ENV LD_LIBRARY_PATH="${GCC_TOOLSET_ROOT}/usr/lib64:${GCC_TOOLSET_ROOT}/usr/lib:${LD_LIBRARY_PATH}"
+ENV LD_LIBRARY_PATH="${GCC_TOOLSET_ROOT}/usr/lib64:${GCC_TOOLSET_ROOT}/usr/lib"
 
 # Install uv exactly as in the upstream Dockerfile.
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
