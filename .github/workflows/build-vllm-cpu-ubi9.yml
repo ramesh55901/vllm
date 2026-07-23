@@ -7,7 +7,7 @@ on:
         description: Push the image to Docker Hub
         required: true
         type: boolean
-        default: false
+        default: true
       image_tag:
         description: Image tag
         required: true
@@ -83,13 +83,21 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-        with:
-          install: true
+
+      - name: Determine whether image should be pushed
+        id: push-check
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            echo "push=true" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.push_image }}" == "true" ]]; then
+            echo "push=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "push=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Log in to Docker Hub
-        if: >-
-          github.event_name == 'workflow_dispatch' &&
-          inputs.push_image == true
+        if: steps.push-check.outputs.push == 'true'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -103,12 +111,13 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=raw,value=${{ inputs.image_tag || 'v0.18.0-ubi9' }}
+            type=raw,value=latest,enable=${{ steps.push-check.outputs.push == 'true' }}
             type=sha,prefix=sha-
           labels: |
             org.opencontainers.image.title=vLLM CPU UBI9
-            org.opencontainers.image.description=vLLM v0.18.0 CPU image for linux/amd64 on UBI9
+            org.opencontainers.image.description=vLLM CPU image for linux/amd64 on UBI9
 
-      - name: Build vLLM CPU UBI9 image
+      - name: Build and push vLLM CPU UBI9 image
         id: build
         uses: docker/build-push-action@v6
         with:
@@ -116,9 +125,7 @@ jobs:
           file: ${{ env.DOCKERFILE }}
           target: ${{ env.BUILD_TARGET }}
           platforms: linux/amd64
-          push: >-
-            ${{ github.event_name == 'workflow_dispatch' &&
-                inputs.push_image == true }}
+          push: ${{ steps.push-check.outputs.push == 'true' }}
           tags: ${{ steps.metadata.outputs.tags }}
           labels: ${{ steps.metadata.outputs.labels }}
           build-args: |
@@ -133,5 +140,7 @@ jobs:
       - name: Show build result
         shell: bash
         run: |
+          echo "Push enabled: ${{ steps.push-check.outputs.push }}"
+          echo "Image tags:"
+          echo "${{ steps.metadata.outputs.tags }}"
           echo "Image digest: ${{ steps.build.outputs.digest }}"
-          echo "Image metadata: ${{ steps.build.outputs.metadata }}"
