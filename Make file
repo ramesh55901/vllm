@@ -1,0 +1,30 @@
+```makefile
+DOCKER ?= docker
+DOCKERFILE ?= docker/Dockerfile.cpu.ubi9
+
+TARGETARCH ?= amd64
+TARGETOS ?= linux
+MAX_JOBS ?= 8
+
+IMAGE_NAME ?= vllm-cpu-ubi9
+BUILD_TARGET ?= vllm-openai
+
+.PHONY: check-build-variables
+check-build-variables:
+	@test -n "$(IMAGE_PREFIX)" || (echo "ERROR: IMAGE_PREFIX is required" && exit 1)
+	@test -n "$(IMAGE_TAG)" || (echo "ERROR: IMAGE_TAG is required" && exit 1)
+
+.PHONY: docker-build
+docker-build: check-build-variables
+	@echo "$(DOCKER) buildx build -f $(DOCKERFILE) -t $(IMAGE_PREFIX)$(IMAGE_NAME):$(IMAGE_TAG) --platform $(TARGETOS)/$(TARGETARCH) --target $(BUILD_TARGET) --build-arg TARGETARCH=$(TARGETARCH) --build-arg TARGETOS=$(TARGETOS) --build-arg max_jobs=$(MAX_JOBS) --push ."
+	$(DOCKER) buildx build \
+		-f $(DOCKERFILE) \
+		-t $(IMAGE_PREFIX)$(IMAGE_NAME):$(IMAGE_TAG) \
+		--platform $(TARGETOS)/$(TARGETARCH) \
+		--target $(BUILD_TARGET) \
+		--build-arg TARGETARCH=$(TARGETARCH) \
+		--build-arg TARGETOS=$(TARGETOS) \
+		--build-arg max_jobs=$(MAX_JOBS) \
+		--push \
+		.
+```
